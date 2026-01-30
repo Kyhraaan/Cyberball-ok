@@ -1,80 +1,243 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="en" dir="ltr">
 <head>
-<meta charset="UTF-8">
-<title>Cyberball Qualtrics jsPsych</title>
-<script src="https://cdn.jsdelivr.net/npm/jspsych@7.3.0/jspsych.js"></script>
-<link href="https://cdn.jsdelivr.net/npm/jspsych@7.3.0/css/jspsych.css" rel="stylesheet">
-<style>
-body { font-family: sans-serif; text-align: center; margin-top: 50px; }
-#jspsych-target { width: 800px; margin: 0 auto; }
-.player { width: 100px; height: 100px; border-radius: 50%; border: 2px solid black; display: inline-block; line-height: 100px; font-weight: bold; margin: 0 50px; }
-.ball { width: 50px; height: 50px; background: orange; border-radius: 50%; display: inline-block; vertical-align: middle; margin-left: 10px; }
-</style>
+  <link href="https://fonts.cdnfonts.com/css/jungle-adventurer" rel="stylesheet">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>CyberCatch</title>
+  <style>
+    body {
+      font-family: 'Jungle Adventurer', Arial, sans-serif !important;
+      text-align: center;
+      background-color: #d3d3d3;
+      color: black;
+      overflow: hidden;
+      padding-top: 40px;
+    }
+    .game-container {
+      position: relative;
+      width: 400px;
+      height: 400px;
+      margin: 80px auto 50px auto;
+    }
+    .player {
+      width: 80px;
+      height: 80px;
+      background-color: #808080;
+      border-radius: 50%;
+      position: absolute;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 14px;
+      font-weight: bold;
+      cursor: pointer;
+      border: 3px solid transparent;
+      color: white;
+      z-index: 2;
+    }
+    .ball {
+      width: 20px;
+      height: 20px;
+      background-color: green;
+      border-radius: 50%;
+      position: absolute;
+      transition: left 0.8s ease-in-out, top 0.8s ease-in-out;
+      z-index: 3;
+      pointer-events: none;
+    }
+    .info {
+      margin-top: 20px;
+      font-size: 18px;
+    }
+    #nickname-screen, #waiting-screen {
+      display: none;
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      top: 0;
+      left: 0;
+      background: #d3d3d3;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      z-index: 10;
+    }
+    #nickname-screen input {
+      margin-top: 10px;
+      padding: 8px;
+      font-size: 16px;
+    }
+    #nickname-screen button {
+      font-family: 'Jungle Adventurer', Arial, sans-serif !important;
+      margin-top: 20px;
+      padding: 8px 16px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    #waiting-screen img {
+      width: 100px;
+      margin-top: 20px;
+    }
+  </style>
 </head>
 <body>
-<h2>Cyberball</h2>
-<div id="jspsych-target"></div>
+  <div id="nickname-screen" style="display:flex; flex-direction:column;">
+    <h2>Please enter your nickname:</h2>
+    <input type="text" id="nickname-input" placeholder="Your name..." />
+    <button id="start-button">Start</button>
+  </div>
+
+  <div id="waiting-screen">
+    <h2>Waiting for other players to log in...</h2>
+    <img src="https://icon-library.com/images/waiting-icon-gif/waiting-icon-gif-1.jpg" alt="Waiting..." />
+  </div>
+
+  <div id="game-screen" style="display:none;">
+    <h1>CyberCatch</h1>
+    <p>Click on a player to pass the ball when it's your turn.</p>
+    <div class="game-container" id="game-container">
+      <div class="player" id="player3" style="left: 70px; top: 50px;">Alex</div>
+      <div class="player" id="player2" style="left: 250px; top: 50px;">Taylor</div>
+      <div class="player" id="player1" style="left: 300px; top: 200px;">Casey</div>
+      <div class="player" id="player4" style="left: 20px; top: 200px;">Jordan</div>
+      <div class="player" id="player0" style="left: 160px; top: 300px;">You</div>
+      <div class="ball" id="ball"></div>
+    </div>
+    <div class="info" id="info">The game is starting...</div>
+  </div>
 
 <script>
-document.addEventListener("DOMContentLoaded", function(){
+document.addEventListener("DOMContentLoaded", () => {
+  let nickname = "You";
+  const players = ["player0", "player1", "player2", "player3", "player4"];
+  let currentPlayer = "player3";
+  let totalThrows = 0;
+  const maxThrows = 60;
+  let participantReceivesLeft = 6;
+  let gameEnded = false;
+  let gameLog = [];
+  let lastPlayerReceiveTime = null;
 
-// ---------- CONFIGURATION ----------
-const totalThrows = 30;
-const players = ['You','A','B'];
-const participantID = 0;
-
-// Randomisation condition
-const condition = Math.random() < 0.5 ? 'inclusion' : 'exclusion';
-
-// Envoi Embedded Data vers Qualtrics
-if(window.parent && window.parent.Qualtrics && window.parent.Qualtrics.SurveyEngine){
-    window.parent.Qualtrics.SurveyEngine.setEmbeddedData('CyberballCondition', condition);
-}
-
-// ---------- GENERATION DES LANCERS ----------
-let throws = [];
-for(let i=0;i<totalThrows;i++){
-    if(condition==='inclusion'){
-        throws.push(players[Math.floor(Math.random()*3)]);
-    } else {
-        if(i<2) throws.push(players[participantID]); // participant reçoit 2 premières passes
-        else throws.push(players[1 + Math.floor(Math.random()*2)]); // ensuite uniquement A ou B
+  document.getElementById("start-button").addEventListener("click", function () {
+    const input = document.getElementById("nickname-input").value.trim();
+    if (!input) {
+      alert("Please enter your nickname before starting.");
+      return;
     }
-}
+    nickname = input;
+    document.getElementById("player0").innerText = nickname;
+    document.getElementById("nickname-screen").style.display = "none";
+    document.getElementById("waiting-screen").style.display = "flex";
+    setTimeout(startGame, 1000);
+  });
 
-// ---------- AFFICHAGE SIMPLIFIE ----------
-const container = document.getElementById('jspsych-target');
-container.innerHTML = "<div id='game'></div><div id='message'></div>";
-const gameDiv = document.getElementById('game');
-const messageDiv = document.getElementById('message');
-
-let currentThrow = 0;
-
-function displayThrow(){
-    gameDiv.innerHTML = '';
-    players.forEach((p,i)=>{
-        let playerDiv = document.createElement('div');
-        playerDiv.className = 'player';
-        playerDiv.innerText = p;
-        if(throws[currentThrow]===p){
-            let ballDiv = document.createElement('div');
-            ballDiv.className = 'ball';
-            playerDiv.appendChild(ballDiv);
-        }
-        gameDiv.appendChild(playerDiv);
+  function startGame() {
+    document.getElementById("waiting-screen").style.display = "none";
+    document.getElementById("game-screen").style.display = "block";
+    moveBall(currentPlayer);
+    setTimeout(aiTurn, getSlowerReactionTime());
+    document.querySelectorAll(".player").forEach(player => {
+      player.addEventListener("click", function () {
+        if (gameEnded || currentPlayer !== "player0" || totalThrows >= maxThrows || this.id === "player0") return;
+        const selectedPlayer = this.id;
+        const receiverElement = document.getElementById(selectedPlayer);
+        if (!receiverElement) return;
+        updateBallHolder(selectedPlayer);
+        totalThrows++;
+        const rt = lastPlayerReceiveTime ? Date.now() - lastPlayerReceiveTime : null;
+        lastPlayerReceiveTime = null;
+        gameLog.push({
+          from: document.getElementById("player0").innerText,
+          to: receiverElement.innerText,
+          type: "Player",
+          rt
+        });
+        document.getElementById("info").innerText = `You passed the ball to ${receiverElement.innerText}`;
+        setTimeout(aiTurn, getSlowerReactionTime());
+      });
     });
-    currentThrow++;
-    if(currentThrow<throws.length){
-        setTimeout(displayThrow, 800); // 0.8s entre passes
-    } else {
-        messageDiv.innerText = "Le jeu est terminé. Merci de continuer le questionnaire.";
+  }
+
+  function updateBallHolder(newHolder) {
+    const targetElement = document.getElementById(newHolder);
+    if (!targetElement) return;
+    moveBall(newHolder);
+    currentPlayer = newHolder;
+    if (newHolder === "player0") {
+      lastPlayerReceiveTime = Date.now();
     }
-}
+  }
 
-// ---------- DÉBUT ----------
-displayThrow();
+  function getSlowerReactionTime() {
+    return Math.floor(Math.random() * 701) + 2000;
+  }
 
+  function moveBall(targetPlayer) {
+    const ball = document.getElementById("ball");
+    const target = document.getElementById(targetPlayer);
+    const container = document.getElementById("game-container");
+    if (!ball || !target || !container) return;
+    const targetRect = target.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+    const centerX = targetRect.left - containerRect.left + target.offsetWidth / 2 - ball.offsetWidth / 2;
+    const centerY = targetRect.top - containerRect.top + target.offsetHeight / 2 - ball.offsetHeight / 2;
+    ball.style.left = `${centerX}px`;
+    ball.style.top = `${centerY}px`;
+  }
+
+  function aiTurn() {
+    if (totalThrows >= maxThrows || gameEnded) {
+      endRound();
+      return;
+    }
+    let nextPlayer;
+    const aiThrowsRemaining = maxThrows - totalThrows - participantReceivesLeft;
+    const shouldGiveToPlayer =
+      participantReceivesLeft > 0 && Math.random() < participantReceivesLeft / Math.max(aiThrowsRemaining, 1);
+    if (shouldGiveToPlayer) {
+      nextPlayer = "player0";
+      participantReceivesLeft--;
+    } else {
+      const aiTargets = players.filter(p => p !== currentPlayer && p !== "player0");
+      nextPlayer = aiTargets[Math.floor(Math.random() * aiTargets.length)];
+    }
+    const throwerElement = document.getElementById(currentPlayer);
+    const receiverElement = document.getElementById(nextPlayer);
+    if (!throwerElement || !receiverElement) return;
+    updateBallHolder(nextPlayer);
+    totalThrows++;
+    gameLog.push({
+      from: throwerElement.innerText,
+      to: receiverElement.innerText,
+      type: "AI",
+      timestamp: Date.now()
+    });
+    const infoElement = document.getElementById("info");
+    infoElement.innerText =
+      nextPlayer === "player0"
+        ? `${throwerElement.innerText} passed the ball to you – it's your turn!`
+        : `${throwerElement.innerText} passed the ball to ${receiverElement.innerText}`;
+    if (nextPlayer !== "player0") {
+      setTimeout(aiTurn, getSlowerReactionTime());
+    }
+  }
+
+  function endRound() {
+    gameEnded = true;
+    const gameLogString = JSON.stringify(gameLog);
+    console.log("📤 Sending to Qualtrics with tag: CyberSizeLog6");
+    window.parent.postMessage({ type: "CyberSizeLog6", gameLog: gameLogString }, "*");
+    setTimeout(() => {
+      window.parent.postMessage({ type: "CyberSizeLog6", gameLog: gameLogString }, "*");
+    }, 500);
+    setTimeout(() => {
+      document.body.innerHTML = `
+        <div style="background-color: #d3d3d3; width: 100vw; height: 100vh; display: flex; align-items: center; justify-content: center;">
+          <div style="font-size: 24px; font-weight: bold; color: #2c3e50;">The round has ended!</div>
+        </div>`;
+    }, 700);
+  }
 });
 </script>
 </body>
